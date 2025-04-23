@@ -97,10 +97,86 @@
                             15.05,
                             ['get', 'min_height']
                         ],
-                        'fill-extrusion-opacity': 0.6
+                        'fill-extrusion-opacity': 1
                     },
                 },
                 labelLayerId
+            );
+
+
+            map.addSource('lines', {
+                type: 'geojson',
+                data: {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "properties": {},
+                            "geometry": {
+                                "coordinates": [
+                                    6.814896673645421,
+                                    51.21946945241345
+                                ],
+                                "type": "Point"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "properties": {},
+                            "geometry": {
+                                "coordinates": [
+                                    [
+                                        6.814266951258048,
+                                        51.21873646631599
+                                    ],
+                                    [
+                                        6.81400257882882,
+                                        51.218854180319966
+                                    ],
+                                    [
+                                        6.814301062927143,
+                                        51.21910261800275
+                                    ],
+                                    [
+                                        6.814475444110087,
+                                        51.21903851292416
+                                    ],
+                                    [
+                                        6.814755928466894,
+                                        51.219347399307935
+                                    ],
+                                    [
+                                        6.815082753497109,
+                                        51.21923020084148
+                                    ],
+                                    [
+                                        6.815141045750352,
+                                        51.21929719614752
+                                    ]
+                                ],
+                                "type": "LineString"
+                            }
+                        }
+                    ]
+                }
+            });
+
+            map.addLayer(
+                {
+                    'id': 'lines',
+                    'type': 'line',
+                    'source': 'lines',
+                    'layout': {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    'paint': {
+                        'line-color': 'red',
+                        'line-width': 6
+                    }
+                },
+                labelLayerId
+
             );
 
             map.on('click', 'add-3d-buildings', (e) => {
