@@ -121,37 +121,8 @@
 
         const rightPanel = document.getElementById('right-panel');
 
-        // Create function to populate the right panel with features
-        function populateFeatureList(features) {
-            const featureList = document.getElementById('feature-list');
-            featureList.innerHTML = ''; // Clear existing content
-
-            features.forEach(feature => {
-                const li = document.createElement('li');
-
-                const titleDiv = document.createElement('div');
-                titleDiv.classList.add('feature-title');
-                titleDiv.textContent = feature.label;
-
-                const coordsDiv = document.createElement('div');
-                coordsDiv.classList.add('feature-coordinates');
-                coordsDiv.textContent = `Location: [${feature.coordinates[0].toFixed(4)}, ${feature.coordinates[1].toFixed(4)}]`;
-
-                li.appendChild(titleDiv);
-                li.appendChild(coordsDiv);
-
-                // Add click handler to fly to this location on the map
-                li.addEventListener('click', () => {
-                    map.flyTo({
-                        center: feature.coordinates,
-                        zoom: 18,
-                        speed: 0.8
-                    });
-                });
-
-                featureList.appendChild(li);
-            });
-        }
+        // Add a global variable to store the user's current location
+        let userCurrentLocation = null;
 
         mapboxgl.accessToken = 'pk.eyJ1Ijoic2VyaHV6IiwiYSI6ImNseXpvc3RlczJpbnIya3FscDU2aHc5d3EifQ.FHtPjde_lqensSHZxqthgw';
         const map = new mapboxgl.Map({
@@ -234,6 +205,44 @@
                 labelLayerId
             );
 
+            // Create function to populate the right panel with features
+            function populateFeatureList(features) {
+                const featureList = document.getElementById('feature-list');
+                featureList.innerHTML = ''; // Clear existing content
+
+                features.forEach(feature => {
+                    const li = document.createElement('li');
+
+                    const titleDiv = document.createElement('div');
+                    titleDiv.classList.add('feature-title');
+                    titleDiv.textContent = feature.label;
+
+                    const coordsDiv = document.createElement('div');
+                    coordsDiv.classList.add('feature-coordinates');
+                    coordsDiv.textContent = `Location: [${feature.coordinates[0].toFixed(4)}, ${feature.coordinates[1].toFixed(4)}]`;
+
+                    li.appendChild(titleDiv);
+                    li.appendChild(coordsDiv);
+
+                    // Add click handler to fly to this location on the map
+                    li.addEventListener('click', () => {
+                        // map.flyTo({
+                        //     center: feature.coordinates,
+                        //     zoom: 18,
+                        //     speed: 0.8
+                        // });
+
+                        // Create a route from user location to clicked point if user location is available
+                        if (userCurrentLocation) {
+                            getRoute(userCurrentLocation, feature.coordinates);
+                        } else {
+                        }
+                    });
+
+                    featureList.appendChild(li);
+                });
+            }
+
             // Fetch route from Mapbox Directions API
             async function getRoute(start, end) {
                 const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
@@ -268,9 +277,21 @@
                             "line-width": 6
                         }
                     }, labelLayerId);
-                }
-            }
 
+
+                }
+
+                // Fit the map bounds to the route
+                const bounds = new mapboxgl.LngLatBounds();
+                data.coordinates.forEach(coord => bounds.extend(coord));
+                map.fitBounds(bounds, {
+                    padding: 20, // Add some padding around the route
+                    bearing: map.getBearing(),
+                    pitch: map.getPitch(),
+                    duration: 1000 // Animation duration in milliseconds
+                });
+
+            }
 
             const arrowFeatures = [
                 {
@@ -415,10 +436,12 @@
                 type: 'symbol',
                 source: 'labels',
                 layout: {
+
                     'text-field': ['get', 'label'],
                     'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
                     'text-size': 14,
                     'text-offset': [0, 0],
+                    'visibility': 'none',
                     'text-anchor': 'top',
                     'text-allow-overlap': true,
                     'text-rotation-alignment': 'map',
@@ -431,45 +454,40 @@
                 }
             }, labelLayerId);
 
-
-
-
-            getRoute(start, end);
-
-            // Optionally, add markers for start and end
-            new mapboxgl.Marker({ color: 'green' }).setLngLat(start).addTo(map);
-            new mapboxgl.Marker({ color: 'red' }).setLngLat(end).addTo(map);
-
             // Get user location and add marker
             if ('geolocation' in navigator) {
                 navigator.geolocation.getCurrentPosition(position => {
-                    const userLocation = [position.coords.longitude, position.coords.latitude];
+                    userCurrentLocation = [position.coords.longitude, position.coords.latitude];
 
                     // Add a marker for user location
-                    new mapboxgl.Marker({
+                    window.userMarker = new mapboxgl.Marker({
                         color: 'blue',
                         element: createUserLocationMarker()
                     })
-                        .setLngLat(userLocation)
+                        .setLngLat(userCurrentLocation)
                         .addTo(map);
 
-                    console.log('User location:', userLocation);
+                    console.log('User location:', userCurrentLocation);
 
                     // Add user location to feature list
                     const userFeature = {
-                        coordinates: userLocation,
+                        coordinates: userCurrentLocation,
                         label: "Your Location"
                     };
                     populateFeatureList([...arrowFeatures, userFeature]);
                 }, error => {
                     console.error('Error getting location:', error);
+                    // Fallback to default location if geolocation fails
+                    userCurrentLocation = start; // Using the predefined start point as fallback
                 }, {
                     enableHighAccuracy: true,
                     timeout: 5000
                 });
             } else {
                 console.log('Geolocation is not supported by this browser.');
+                userCurrentLocation = start; // Using the predefined start point as fallback
             }
+
 
             // Function to create custom user location marker
             function createUserLocationMarker() {
@@ -503,3 +521,4 @@
 </body>
 
 </html>
+```
