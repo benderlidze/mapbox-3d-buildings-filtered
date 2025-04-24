@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Display buildings in 3D</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js"></script>
+    <link rel="stylesheet"
+        href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.2.0/mapbox-gl-directions.css"
+        type="text/css">
+    <script
+        src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.2.0/mapbox-gl-directions.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <script>
+        // TO MAKE THE MAP APPEAR YOU MUST
+        // ADD YOUR ACCESS TOKEN FROM
+        // https://account.mapbox.com
+        mapboxgl.accessToken = 'pk.eyJ1Ijoic2VyaHV6IiwiYSI6ImNseXpvc3RlczJpbnIya3FscDU2aHc5d3EifQ.FHtPjde_lqensSHZxqthgw';
+        const map = new mapboxgl.Map({
+            // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
+            style: 'mapbox://styles/mapbox/light-v11',
+            center: { lng: 6.814896673645421, lat: 51.21946945241345 },
+            zoom: 17.257060940340775,
+            pitch: 45,
+            bearing: -17.6,
+            container: 'map',
+            antialias: true
+        });
+
+        // Add navigation controls (zoom and rotation)
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+
+        const ids = [
+            282619375, 152447953, 282619377, 152447952, 152447949, 152447945, 282619374,
+            152447919, 152447944, 282619379, 152447946, 152447951, 152447950, 152447933,
+            282619376, 152447941, 282619380, 282619378, 152447948, 305949322, 152447936,
+            152447918, 152447934, 152447925
+        ];
+        const filters = ids.map(id => {
+            return ['==', '$id', id];
+        })
+
+        // Define start and end points
+        const start = [6.814266951258048, 51.21873646631599];
+        const end = [6.815141045750352, 51.21929719614752];
+
+        map.on('style.load', () => {
+            // Insert the layer beneath any symbol layer.
+            const layers = map.getStyle().layers;
+            const labelLayerId = layers.find(
+                (layer) => layer.type === 'symbol' && layer.layout['text-field']
+            ).id;
+
+            // The 'building' layer in the Mapbox Streets
+            // vector tileset contains building height data
+            // from OpenStreetMap.
+            map.addLayer(
+                {
+                    'id': 'add-3d-buildings',
+                    'source': 'composite',
+                    'source-layer': 'building',
+                    'filter': [
+                        'all',
+                        ['==', 'extrude', 'true'],
+                        [
+                            'any',
+                            ...filters
+                        ]
+                    ],
+                    'type': 'fill-extrusion',
+                    'minzoom': 15,
+                    'paint': {
+                        'fill-extrusion-color': 'skyblue',
+                        'fill-extrusion-height': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            15,
+                            0,
+                            15.05,
+                            ['get', 'height']
+                        ],
+                        'fill-extrusion-base': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            15,
+                            0,
+                            15.05,
+                            ['get', 'min_height']
+                        ],
+                        'fill-extrusion-opacity': 1
+                    },
+                },
+                labelLayerId
+            );
+
+            // Fetch route from Mapbox Directions API
+            async function getRoute(start, end) {
+                const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+                const response = await fetch(url);
+                const json = await response.json();
+                const data = json.routes[0].geometry;
+
+                // Add or update the route source/layer
+                if (map.getSource('route')) {
+                    map.getSource('route').setData({
+                        "type": "Feature",
+                        "geometry": data
+                    });
+                } else {
+                    map.addSource('route', {
+                        "type": "geojson",
+                        "data": {
+                            "type": "Feature",
+                            "geometry": data
+                        }
+                    });
+                    map.addLayer({
+                        "id": "route",
+                        "type": "line",
+                        "source": "route",
+                        "layout": {
+                            "line-join": "round",
+                            "line-cap": "round"
+                        },
+                        "paint": {
+                            "line-color": "red",
+                            "line-width": 6
+                        }
+                    }, labelLayerId);
+                }
+            }
+
+
+            const arrowFeatures = [
+                {
+                    coordinates: [6.8147, 51.2193],
+                    direction: 120,
+                    label: "224A"
+                },
+                {
+                    coordinates: [6.814177008957529, 51.21927359991486],
+                    direction: 34,
+                    label: "220a"
+                }
+            ];
+
+            const buildingLabels = [
+                {
+                    coordinates: [6.81412571401367, 51.21908369255499],
+                    direction: 38,
+                    label: `GEBÄUDE 11
+                            Kiosk
+                            Erkrather Straße 214`
+                },
+                {
+                    coordinates: [6.813403307826775, 51.219287814531356],
+                    direction: 40,
+                    label: `GEBÄUDE 2  
+                            Atelierhaus
+                            Erkrather Straße 216`
+                },
+            ]
+
+            // Convert to GeoJSON FeatureCollection
+            const arrowGeoJSON = {
+                type: "FeatureCollection",
+                features: arrowFeatures.map(obj => ({
+                    type: "Feature",
+                    geometry: {
+                        type: "Point",
+                        coordinates: obj.coordinates
+                    },
+                    properties: {
+                        direction: obj.direction,
+                        label: obj.label
+                    }
+                }))
+            };
+
+            const buildingLabelsGeoJSON = {
+                type: "FeatureCollection",
+                features: buildingLabels.map(obj => ({
+                    type: "Feature",
+                    geometry: {
+                        type: "Point",
+                        coordinates: obj.coordinates
+                    },
+                    properties: {
+                        direction: obj.direction,
+                        label: obj.label
+                    }
+                }))
+            };
+
+            // Add SVG arrow as an image (red arrow, white border for visibility)
+            map.loadImage(
+                // SVG data URI: white square with red arrow and black border
+                'triangle.png',
+                (error, image) => {
+                    if (error) throw error;
+                    if (!map.hasImage('arrow-icon')) {
+                        map.addImage('arrow-icon', image, { sdf: false });
+                    }
+
+                    // Add the GeoJSON source
+                    if (!map.getSource('arrows')) {
+                        map.addSource('arrows', {
+                            type: 'geojson',
+                            data: arrowGeoJSON
+                        });
+                    }
+
+                    // Arrow symbol layer
+                    map.addLayer({
+                        id: 'arrow-symbols',
+                        type: 'symbol',
+                        source: 'arrows',
+                        layout: {
+                            'icon-image': 'arrow-icon',
+                            'icon-size': 0.7, // set to 0.7 for 31x18px image to display at native size
+                            'icon-offset': [0, -15], // negative Y offset: center below arrow tip
+                            'icon-allow-overlap': true,
+                            'icon-rotate': ['get', 'direction'],
+                            'icon-rotation-alignment': 'map',
+                            'icon-anchor': 'top',
+                            'text-optional': true,
+                        }
+                    }, labelLayerId);
+
+                    // Text label layer (below arrow)
+                    map.addLayer({
+                        id: 'arrow-labels',
+                        type: 'symbol',
+                        source: 'arrows',
+                        layout: {
+                            'text-field': ['get', 'label'],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14,
+                            //'text-offset': [-1, 0], // negative Y offset: center below arrow tip
+                            'text-anchor': 'top',     // anchor at arrow tip
+
+                            'text-allow-overlap': true,
+                            'text-rotation-alignment': 'map',
+                            'text-rotate': ['get', 'direction']
+                        },
+                        paint: {
+                            'text-color': 'black',
+                            'text-halo-color': 'white',
+                            'text-halo-width': 2
+                        }
+                    }, labelLayerId);
+                }
+            );
+
+            // Add building labels
+            map.addSource('labels', {
+                type: 'geojson',
+                data: buildingLabelsGeoJSON
+            });
+            map.addLayer({
+                id: 'building-labels',
+                type: 'symbol',
+                source: 'labels',
+                layout: {
+                    'text-field': ['get', 'label'],
+                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                    'text-size': 14,
+                    'text-offset': [0, 0],
+                    'text-anchor': 'top',
+                    'text-allow-overlap': true,
+                    'text-rotation-alignment': 'map',
+                    'text-rotate': ['get', 'direction']
+                },
+                paint: {
+                    'text-color': '#000000',
+                    'text-halo-color': '#ffffff',
+                    'text-halo-width': 2
+                }
+            }, labelLayerId);
+
+
+
+
+            getRoute(start, end);
+
+            // Optionally, add markers for start and end
+            new mapboxgl.Marker({ color: 'green' }).setLngLat(start).addTo(map);
+            new mapboxgl.Marker({ color: 'red' }).setLngLat(end).addTo(map);
+
+            map.on('click', 'add-3d-buildings', (e) => {
+                const description = e.features[0];
+                const id = e.features[0].id;
+                console.log(description, id);
+
+                ids.push(id);
+                console.log('ids', ids);
+            });
+
+            map.on('click', (e) => {
+                const latLng = e.lngLat;
+                const coordinates = [latLng.lng, latLng.lat];
+                console.log('Clicked coordinates:', coordinates);
+            });
+        });
+    </script>
+
+</body>
+
+</html>
