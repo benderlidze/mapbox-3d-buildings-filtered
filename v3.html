@@ -452,44 +452,9 @@
                     'text-halo-color': '#ffffff',
                     'text-halo-width': 2
                 }
-            }, labelLayerId);
-
-            // Function to create custom user location marker
-            function createUserLocationMarker() {
-                const el = document.createElement('div');
-                el.style.width = '20px';
-                el.style.height = '20px';
-                el.style.borderRadius = '50%';
-                el.style.background = '#4285F4';
-                el.style.border = '2px solid white';
-                el.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.3)';
-                return el;
-            }
-
-            // Get user location and add marker
-            let userLocationWatchId = null;
-            let userLocationTimer = null;
-            let emulatedPosition = null;
-            let emulationTimer = null;
-
-            // Emulation settings - set to true to enable position emulation
-            const ENABLE_POSITION_EMULATION = true;
-            const emulationRoute = [
-                [6.814266951258048, 51.21873646631599],
-                [6.814400, 51.21880],
-                [6.814600, 51.21890],
-                [6.814800, 51.21900],
-                [6.815000, 51.21910],
-                [6.815141045750352, 51.21929719614752]
-            ];
-            let emulationIndex = 0;
-
-            function updateUserLocation(position) {
-                if (ENABLE_POSITION_EMULATION) {
-                    userCurrentLocation = emulatedPosition;
-                } else {
-                    userCurrentLocation = [position.coords.longitude, position.coords.latitude];
-                }
+            }, labelLayerId);            // Function to update user location and UI
+            function updateUserLocationDisplay(position) {
+                userCurrentLocation = [position.coords.longitude, position.coords.latitude];
 
                 // Add or update the marker for user location
                 if (!window.userMarker) {
@@ -513,75 +478,99 @@
                 populateFeatureList([...arrowFeatures, userFeature]);
             }
 
-            function startPositionEmulation() {
-                emulatedPosition = emulationRoute[0];
-                updateUserLocation(null); // Initial update
-
-                emulationTimer = setInterval(() => {
-                    emulationIndex = (emulationIndex + 1) % emulationRoute.length;
-                    emulatedPosition = emulationRoute[emulationIndex];
-                    updateUserLocation(null);
-                }, 3000);
-            }
-
+            // Function to handle location errors
             function handleLocationError(error) {
                 console.error('Error getting location:', error);
-                // Fallback to default location if geolocation fails
+
+                // Set fallback location
                 userCurrentLocation = start;
+
+                // Create fallback marker (orange color to indicate fallback)
+                if (!window.userMarker) {
+                    window.userMarker = new mapboxgl.Marker({
+                        color: 'orange',
+                        element: createUserLocationMarker()
+                    })
+                        .setLngLat(userCurrentLocation)
+                        .addTo(map);
+                } else {
+                    window.userMarker.setLngLat(userCurrentLocation);
+                }
+
+                console.log('Using fallback location:', userCurrentLocation);
+
+                // Add fallback location to feature list
+                const userFeature = {
+                    coordinates: userCurrentLocation,
+                    label: "Your Location (Fallback)"
+                };
+                populateFeatureList([...arrowFeatures, userFeature]);
             }
 
-            if (ENABLE_POSITION_EMULATION) {
-                console.log('Position emulation enabled - tracking simulated movement');
-                startPositionEmulation();
-            } else if ('geolocation' in navigator) {
-                // Use watchPosition for continuous tracking
-                userLocationWatchId = navigator.geolocation.watchPosition(
-                    position => {
-                        updateUserLocation(position);
-                    },
-                    error => {
-                        handleLocationError(error);
-                    },
+            // Get user location and add marker with continuous tracking
+            if ('geolocation' in navigator) {
+                // Get initial position
+                navigator.geolocation.getCurrentPosition(
+                    updateUserLocationDisplay,
+                    handleLocationError,
                     {
-                        enableHighAccuracy: true,
-                        timeout: 5000,
-                        maximumAge: 0
+                        enableHighAccuracy: false,
+                        timeout: 15000,
+                        maximumAge: 60000
                     }
                 );
 
-                // Force update every 3 seconds
-                userLocationTimer = setInterval(() => {
+                // Start watching position for continuous updates
+                const watchId = navigator.geolocation.watchPosition(
+                    updateUserLocationDisplay,
+                    error => {
+                        console.warn('Watch position error:', error);
+                    },
+                    {
+                        enableHighAccuracy: false,
+                        timeout: 10000,
+                        maximumAge: 30000
+                    }
+                );
+
+                // Force update every 3 seconds using setInterval
+                setInterval(() => {
                     navigator.geolocation.getCurrentPosition(
-                        position => {
-                            updateUserLocation(position);
-                        },
+                        updateUserLocationDisplay,
                         error => {
-                            handleLocationError(error);
+                            console.warn('Interval position error:', error);
                         },
                         {
-                            enableHighAccuracy: true,
-                            timeout: 5000,
-                            maximumAge: 0
+                            enableHighAccuracy: false,
+                            timeout: 8000,
+                            maximumAge: 10000
                         }
                     );
-                }, 3000);
+                }, 3000); // Update every 3 seconds
+
+                // Cleanup on page unload
+                window.addEventListener('beforeunload', () => {
+                    if (watchId) {
+                        navigator.geolocation.clearWatch(watchId);
+                    }
+                });
             } else {
                 console.log('Geolocation is not supported by this browser.');
-                userCurrentLocation = start;
+                handleLocationError(new Error('Geolocation not supported'));
             }
 
-            // Cleanup function for when the page is unloaded
-            window.addEventListener('beforeunload', () => {
-                if (userLocationWatchId) {
-                    navigator.geolocation.clearWatch(userLocationWatchId);
-                }
-                if (userLocationTimer) {
-                    clearInterval(userLocationTimer);
-                }
-                if (emulationTimer) {
-                    clearInterval(emulationTimer);
-                }
-            });
+
+            // Function to create custom user location marker
+            function createUserLocationMarker() {
+                const el = document.createElement('div');
+                el.style.width = '20px';
+                el.style.height = '20px';
+                el.style.borderRadius = '50%';
+                el.style.background = '#4285F4';
+                el.style.border = '2px solid white';
+                el.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.3)';
+                return el;
+            }
 
             map.on('click', 'add-3d-buildings', (e) => {
                 const description = e.features[0];
@@ -603,3 +592,4 @@
 </body>
 
 </html>
+```
